@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>五子棋 - Gomoku</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0f0f11;
+            --bg-panel: #1a1a1d;
+            --accent-cyan: #00f2ff;
+            --accent-magenta: #ff00ff;
+            --text-primary: #e0e0e0;
+            --text-secondary: #a0a0a0;
+            --board-floor: #2a2a2e;
+            --board-line: #404045;
+            --shadow-glow: 0 0 40px rgba(0, 242, 255, 0.15);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-dark);
+            background-image:
+                radial-gradient(circle at top left, rgba(0, 242, 255, 0.08), transparent 40%),
+                radial-gradient(circle at bottom right, rgba(255, 0, 255, 0.08), transparent 40%),
+                linear-gradient(135deg, #0f0f11 0%, #1a1a1d 100%);
+            color: var(--text-primary);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Background ambient particles */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image:
+                radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+                radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+            background-position: 0 0, 20px 20px;
+            pointer-events: none;
+            z-index: -1;
+            animation: ambientShift 60s linear infinite;
+        }
+
+        @keyframes ambientShift {
+            0% { background-position: 0 0, 20px 20px; }
+            100% { background-position: 40px 40px, 60px 60px; }
+        }
+
+        .game-container {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 40px;
+            align-items: center;
+            max-width: 1200px;
+            padding: 40px 20px;
+            position: relative;
+        }
+
+        /* Left panel - Controls */
+        .controls-panel {
+            background: var(--bg-panel);
+            background: rgba(26, 26, 29, 0.7);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            padding: 40px 32px;
+            box-shadow: var(--shadow-glow);
+            position: relative;
+        }
+
+        .controls-panel::before {
+            content: '';
+            position: absolute;
+            top: -2px; left: -2px; right: -2px; bottom: -2px;
+            background: linear-gradient(45deg, var(--accent-cyan), var(--accent-magenta));
+            border-radius: 24px;
+            z-index: -1;
+            opacity: 0.3;
+        }
+
+        .game-title {
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 64px;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-magenta));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 40px;
+            letter-spacing: 4px;
+            text-shadow: 0 4px 24px rgba(0, 242, 255, 0.3);
+        }
+
+        .controls-section {
+            display: flex;
+            flex-direction: column;
+            gap: 28px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .control-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+
+        .player-status {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .player-indicator {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            position: relative;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transform: scale(1);
+        }
+
+        .player-indicator::after {
+            content: '';
+            position: absolute;
+            inset: 4px;
+            border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .player-indicator.black {
+            background: radial-gradient(circle at 30% 30%, #444, #000);
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.6);
+        }
+
+        .player-indicator.white {
+            background: radial-gradient(circle at 30% 30%, #fff, #ccc);
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+        }
+
+        .player-indicator.active-black {
+            box-shadow: 0 0 30px var(--accent-cyan);
+            transform: scale(1.1);
+        }
+
+        .player-indicator.active-white {
+            box-shadow: 0 0 30px var(--accent-magenta);
+            transform: scale(1.1);
+        }
+
+        .player-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .player-name {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .player-name.active {
+            color: var(--accent-cyan);
+            text-shadow: 0 0 10px rgba(0, 242, 255, 0.5);
+        }
+
+        .player-name.ai {
+            color: var(--accent-magenta);
+        }
+
+        .difficulty-select {
+            position: relative;
+        }
+
+        .difficulty-select select {
+            width: 100%;
+            padding: 14px 20px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            color: var(--text-primary);
+            font-size: 15px;
+            cursor: pointer;
+            outline: none;
+            transition: all 0.3s ease;
+            appearance: none;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .difficulty-select select:hover {
+            border-color: var(--accent-cyan);
+        }
+
+        .difficulty-select select::selection {
+            background: var(--accent-cyan);
+            color: #000;
+        }
+
+        .difficulty-select select::-ms-expand {
+            display: none;
+        }
+
+        .difficulty-select::after {
+            content: '▼';
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 12px;
+            color: var(--text-secondary);
+            pointer-events: none;
+        }
+
+        .buttons-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .btn {
+            padding: 18px 24px;
+            font-size: 15px;
+            font-weight: 600;
+            border: none;
+            border-radius: 14px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-cyan), #00c3ff);
+            color: #000;
+            box-shadow: 0 0 24px rgba(0, 242, 255, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 36px rgba(0, 242, 255, 0.5);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 0, 255, 0.1);
+            color: var(--accent-magenta);
+            border: 1px solid rgba(255, 0, 255, 0.3);
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: rgba(255, 0, 255, 0.2);
+            border-color: var(--accent-magenta);
+            transform: translateY(-2px);
+            box-shadow: 0 0 24px rgba(255, 0, 255, 0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        /* Right panel - Board */
+        .board-container {
+            position: relative;
+            padding: 30px;
+            background: rgba(20, 20, 24, 0.6);
+            border-radius: 32px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow:
+                0 0 60px rgba(0, 0, 0, 0.5),
+                inset 0 0 80px rgba(0, 0, 0, 0.3);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Canvas styling - no border, clean look */
+        canvas {
+            border-radius: 8px;
+            cursor: crosshair;
+            background: #2a2a2e;
+            box-shadow:
+                inset 0 0 40px rgba(0, 0, 0, 0.8),
+                0 20px 60px rgba(0, 0, 0, 0.4);
+            transition: transform 0.3s ease;
+        }
+
+        .board-container:hover canvas {
+            transform: scale(1.02);
+        }
+
+        /* Result overlay */
+        .game-result {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.9);
+            padding: 40px 60px;
+            background: rgba(26, 26, 29, 0.95);
+            backdrop-filter: blur(30px);
+            border-radius: 32px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 80px rgba(0, 0, 0, 0.6);
+            text-align: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 100;
+        }
+
+        .game-result.show {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+            pointer-events: auto;
+        }
+
+        .game-result.win {
+            border: 1px solid var(--accent-cyan);
+            box-shadow: 0 0 60px rgba(0, 242, 255, 0.3);
+        }
+
+        .game-result.win .result-title {
+            background: linear-gradient(135deg, var(--accent-cyan), #00c3ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 0 30px rgba(0, 242, 255, 0.5);
+        }
+
+        .game-result.draw {
+            border: 1px solid var(--accent-magenta);
+            box-shadow: 0 0 60px rgba(255, 0, 255, 0.2);
+        }
+
+        .game-result.draw .result-title {
+            background: linear-gradient(135deg, var(--accent-magenta), #d900ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 0 30px rgba(255, 0, 255, 0.5);
+        }
+
+        .result-title {
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 48px;
+            margin-bottom: 20px;
+            line-height: 1;
+        }
+
+        .result-message {
+            color: var(--text-secondary);
+            font-size: 16px;
+        }
+
+        /* Pulse animation for active player */
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+            margin-left: 8px;
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        /* Responsive */
+        @media (max-width: 968px) {
+            .game-container {
+                grid-template-columns: 1fr;
+                gap: 30px;
+                padding: 20px;
+            }
+
+            .game-title {
+                font-size: 48px;
+            }
+
+            .controls-panel {
+                padding: 30px 24px;
+            }
+
+            .board-container {
+                padding: 20px;
+            }
+        }
+
+        /* Vue-style subtle texture */
+        .texture-overlay {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            background: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjMTExMTEyIiBmaWxsLW9wYWNpdHk9IjAuMDUiLz4KPC9zdmc+');
+            opacity: 0.5;
+            z-index: -2;
+        }
+    </style>
+</head>
+<body>
+    <div class="texture-overlay"></div>
+
+    <div class="game-container">
+        <!-- Left Panel -->
+        <div class="controls-panel">
+            <div class="game-title">五子棋</div>
+
+            <div class="controls-section">
+                <!-- Status -->
+                <div class="control-group">
+                    <div class="control-label">Current Player</div>
+                    <div class="player-status">
+                        <div class="player-indicator black active-black" id="playerIndicator"></div>
+                        <div class="player-info">
+                            <div class="player-name active">
+                                黑方
+                                <span class="status-indicator"></span>
+                            </div>
+                            <div class="player-name ai" id="aiName">白方（AI）</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Difficulty -->
+                <div class="control-group">
+                    <div class="control-label">AI Difficulty</div>
+                    <div class="difficulty-select">
+                        <select id="difficultySelect">
+                            <option value="amateur">业余 (Amateur)</option>
+                            <option value="medium" selected>中等 (Medium)</option>
+                            <option value="expert">高手 (Expert)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Buttons -->
+                <div class="controls-section buttons-grid">
+                    <button class="btn btn-primary" id="restartBtn">
+                        <span>↺</span> New Game
+                    </button>
+                    <button class="btn btn-secondary" id="undoBtn" disabled>
+                        <span>⌫</span> Undo
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel - Board -->
+        <div class="board-container">
+            <canvas id="chessBoard"></canvas>
+        </div>
+    </div>
+
+    <!-- Result Overlay -->
+    <div id="gameResult" class="game-result">
+        <h2 class="result-title" id="resultTitle">Black Wins!</h2>
+        <p class="result-message" id="resultMessage">Congratulations</p>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
